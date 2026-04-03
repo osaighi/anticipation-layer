@@ -8,6 +8,7 @@ into a single high-level interface.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Optional, Callable
 
 from .models import Anticipation, Horizon, Category, Impact
@@ -42,19 +43,49 @@ class AnticipationLayer:
         generate_fn: Optional[Callable] = None,
         top_k: int = 10,
         max_context_tokens: int = 500,
+        config_path: Optional[str] = None,
     ):
+        cfg = self._load_config(config_path)
+        ue_cfg = cfg.get("update_engine", {})
+        ci_cfg = cfg.get("context_injection", {})
+
         self.storage = Storage(storage_dir)
         self.engine = UpdateEngine(
             storage=self.storage,
             generate_fn=generate_fn,
             similarity_fn=similarity_fn,
+            invalidation_threshold=ue_cfg.get("invalidation_threshold", 0.5),
+            cascade_thresholds={
+                Horizon.SHORT_TERM: ue_cfg.get("cascade_threshold_short", 0.3),
+                Horizon.MEDIUM_TERM: ue_cfg.get("cascade_threshold_medium", 0.5),
+            } if ue_cfg else None,
+            weight_floor=ue_cfg.get("weight_floor", 0.3),
         )
         self.context_assembly = ContextAssembly(
             storage=self.storage,
             similarity_fn=similarity_fn,
-            top_k=top_k,
-            max_tokens=max_context_tokens,
+            top_k=ci_cfg.get("top_k", top_k),
+            min_relevance=ci_cfg.get("min_relevance", 0.1),
+            max_tokens=ci_cfg.get("max_tokens", max_context_tokens),
         )
+
+    @staticmethod
+    def _load_config(config_path: Optional[str]) -> dict:
+        """Load YAML config file if provided. Returns empty dict otherwise."""
+        if config_path is None:
+            return {}
+        try:
+            import yaml
+        except ImportError:
+            raise ImportError(
+                "PyYAML is required to load a config file. "
+                "Install it with: pip install pyyaml"
+            )
+        path = Path(config_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Config file not found: {config_path}")
+        with open(path, "r") as f:
+            return yaml.safe_load(f) or {}
 
     # ─── Core Interface ───────────────────────────────────────────────
 

@@ -41,6 +41,9 @@ class UpdateEngine:
         storage: Storage,
         generate_fn: Optional[Callable] = None,
         similarity_fn: Optional[Callable] = None,
+        invalidation_threshold: float = 0.5,
+        cascade_thresholds: Optional[dict] = None,
+        weight_floor: float = WEIGHT_FLOOR,
     ):
         """
         Args:
@@ -49,10 +52,16 @@ class UpdateEngine:
                          Signature: (context: str, horizon: Horizon, count: int) -> list[Anticipation]
             similarity_fn: Function to compute semantic similarity between two strings.
                            Signature: (a: str, b: str) -> float (0.0 to 1.0)
+            invalidation_threshold: Default similarity threshold for invalidation.
+            cascade_thresholds: Override for horizon cascade thresholds dict.
+            weight_floor: Anticipations below this weight are flagged for refresh.
         """
         self.storage = storage
         self.generate_fn = generate_fn
         self.similarity_fn = similarity_fn or self._default_similarity
+        self.invalidation_threshold = invalidation_threshold
+        self.cascade_thresholds = cascade_thresholds if cascade_thresholds is not None else CASCADE_THRESHOLDS
+        self.weight_floor = weight_floor
 
     @staticmethod
     def _default_similarity(a: str, b: str) -> float:
@@ -67,7 +76,7 @@ class UpdateEngine:
 
     # ─── Mechanism 1: Invalidation (Prediction Error Signal) ──────────
 
-    def check_invalidation(self, event: str, threshold: float = 0.5) -> list[Anticipation]:
+    def check_invalidation(self, event: str, threshold: Optional[float] = None) -> list[Anticipation]:
         """
         Compare an observed event against all active anticipations.
         If the event contradicts a prediction (high similarity but opposite outcome),
@@ -83,12 +92,13 @@ class UpdateEngine:
         Returns:
             List of anticipations that were invalidated.
         """
+        effective_threshold = threshold if threshold is not None else self.invalidation_threshold
         invalidated = []
         active = self.storage.load_all_active()
 
         for anticipation in active:
             similarity = self.similarity_fn(event, anticipation.prediction)
-            if similarity >= threshold:
+            if similarity >= effective_threshold:
                 logger.info(
                     f"Invalidating {anticipation.id}: event '{event[:50]}...' "
                     f"contradicts prediction (similarity={similarity:.2f})"
@@ -148,7 +158,7 @@ class UpdateEngine:
                     expired.append(ant)
                     logger.info(f"Expired: {ant.id} (age={ant.age_hours:.1f}h)")
 
-                elif ant.weight < WEIGHT_FLOOR:
+                elif ant.weight < self.weight_floor:
                     needs_refresh.append(ant)
                     logger.info(
                         f"Needs refresh: {ant.id} (weight={ant.weight:.3f})"
@@ -177,7 +187,7 @@ class UpdateEngine:
             ]
             invalidation_rate = len(invalidated_in_horizon) / len(all_in_horizon)
 
-            threshold = CASCADE_THRESHOLDS.get(horizon)
+            threshold = self.cascade_thresholds.get(horizon)
             if threshold and invalidation_rate >= threshold:
                 next_horizon = (
                     Horizon.MEDIUM_TERM if horizon == Horizon.SHORT_TERM
