@@ -140,6 +140,9 @@ class ContextAssembly:
                 f"Anticipation context ({estimated_tokens:.0f} est. tokens) "
                 f"exceeds budget ({self.max_tokens}). Truncating."
             )
+            if top_k <= 3:
+                # Already at minimum item count — hard-truncate to fit budget
+                return context[: self.max_tokens * 4]
             # Re-select with fewer items without mutating self.top_k
             return self.format_context(query, _top_k=max(3, top_k - 2))
 
