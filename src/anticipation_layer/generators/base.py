@@ -113,7 +113,8 @@ class BaseGenerator(ABC):
             logger.error(f"Generation failed for {horizon.value}: {e}")
             return []
 
-    def _parse_response(self, raw: str, horizon: Horizon) -> list[Anticipation]:
+    @staticmethod
+    def _parse_response(raw: str, horizon: Horizon) -> list[Anticipation]:
         """Parse LLM JSON response into Anticipation objects."""
         # Strip markdown fences if present
         cleaned = raw.strip()

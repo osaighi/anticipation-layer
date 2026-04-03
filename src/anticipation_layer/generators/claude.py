@@ -108,9 +108,7 @@ class ClaudeGeneratorSync:
 
     def generate(self, context, horizon, count=3, existing=None):
         """Synchronous generation using the sync Anthropic client."""
-        import json
-        from .base import GENERATION_SYSTEM_PROMPT, GENERATION_USER_PROMPT
-        from ..models import Anticipation, Horizon, Category, Impact
+        from .base import BaseGenerator, GENERATION_SYSTEM_PROMPT, GENERATION_USER_PROMPT
 
         existing_text = "None"
         if existing:
@@ -138,29 +136,4 @@ class ClaudeGeneratorSync:
             block.text for block in message.content if hasattr(block, "text")
         )
 
-        # Parse
-        cleaned = raw.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-
-        entries = json.loads(cleaned)
-        if not isinstance(entries, list):
-            entries = [entries]
-
-        anticipations = []
-        for entry in entries:
-            try:
-                ant = Anticipation(
-                    prediction=entry["prediction"],
-                    horizon=horizon,
-                    category=Category(entry.get("category", "neutral")),
-                    impact=Impact(entry.get("impact", "medium")),
-                    confidence=float(entry.get("confidence", 0.5)),
-                    domain=entry.get("domain", "general"),
-                    suggested_actions=entry.get("suggested_actions", []),
-                )
-                anticipations.append(ant)
-            except (KeyError, ValueError) as e:
-                logger.warning(f"Skipping malformed entry: {e}")
-
-        return anticipations
+        return BaseGenerator._parse_response(raw, horizon)
