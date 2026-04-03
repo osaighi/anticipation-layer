@@ -31,9 +31,9 @@ Instead of reasoning about the future at every request (expensive), the agent **
 
 ```
 anticipations/
-├── short_term.md      # 1-7 days    — tactical decisions
-├── medium_term.md     # 1-3 months  — strategic planning
-└── long_term.md       # 6-12 months — vision & direction
+├── short_term.json    # 1-7 days    — tactical decisions
+├── medium_term.json   # 1-3 months  — strategic planning
+└── long_term.json     # 6-12 months — vision & direction
 ```
 
 Each horizon has its own decay rate, refresh frequency, and update dynamics.
@@ -89,31 +89,48 @@ Inspired by how the human brain maintains and updates its predictive models:
 
 ```bash
 pip install anticipation-layer
+# Optional: YAML config support
+pip install anticipation-layer[config]
+# Optional: LLM generation (Claude / OpenAI)
+pip install anticipation-layer[llm]
 ```
 
 ```python
-from anticipation_layer import AnticipationLayer, Horizon
+import asyncio
+from anticipation_layer import AnticipationLayer, Horizon, Category, Impact
+from anticipation_layer.generators import ClaudeGenerator
 
-# Initialize the layer
-layer = AnticipationLayer(storage_dir="./anticipations")
-
-# Generate anticipations from current context
-layer.generate(
-    context="Sprint ends Friday. Hotfix #342 still open. Q2 budget at 87%.",
-    model="claude-sonnet-4-20250514"
+# Initialize with a config file (optional)
+generator = ClaudeGenerator(api_key="sk-ant-...")
+layer = AnticipationLayer(
+    storage_dir="./anticipations",
+    generate_fn=generator.generate,
+    config_path="anticipation_config.yaml",  # optional
 )
 
-# Get relevant anticipations for a request
-context = layer.get_context(
-    query="Should we proceed with Thursday's deployment?",
-    top_k=5
+# Add an anticipation manually
+layer.add(
+    prediction="Thursday's deployment may fail if hotfix #342 is not merged by Wednesday.",
+    horizon=Horizon.SHORT_TERM,
+    category=Category.RISK,
+    impact=Impact.HIGH,
+    confidence=0.75,
 )
+
+# Get relevant anticipations for a request (cheap: just a file read + filter)
+context = layer.get_context("Should we proceed with Thursday's deployment?")
 
 # Register an event (triggers invalidation check)
 layer.register_event("Hotfix #342 was merged successfully")
 
-# Run idle consolidation
-layer.consolidate()
+# Run idle consolidation (generates new anticipations via LLM, archives old ones)
+asyncio.run(layer.consolidate(current_context="Sprint ends Friday. Q2 budget at 87%."))
+
+# Inspect all active anticipations
+print(layer.status())
+
+# Performance metrics
+print(layer.metrics())
 ```
 
 ## Anticipation Format
@@ -137,6 +154,13 @@ Each anticipation is a structured entry:
 ```
 
 ## Configuration
+
+Pass `config_path` to `AnticipationLayer` to load settings from a YAML file
+(requires `pip install anticipation-layer[config]`):
+
+```python
+layer = AnticipationLayer(storage_dir="./anticipations", config_path="anticipation_config.yaml")
+```
 
 ```yaml
 # anticipation_config.yaml
@@ -165,13 +189,15 @@ update_engine:
 
 context_injection:
   top_k: 10
-  min_relevance: 0.4
+  min_relevance: 0.1
   max_tokens: 500               # max context budget for anticipations
 
 consolidation:
   idle_timeout_seconds: 300     # trigger after 5 min of inactivity
   max_new_anticipations: 5      # cap proactive generation per cycle
 ```
+
+Without a config file, all values default to the values above.
 
 ## Documentation
 
@@ -195,11 +221,12 @@ consolidation:
 
 - [x] Concept formalization
 - [x] Core library (`AnticipationLayer`, `UpdateEngine`, `ContextAssembly`)
-- [x] File-based storage backend
+- [x] File-based storage backend (JSON)
 - [x] Similarity functions (keyword, TF-IDF, embedding-based)
 - [x] LLM-powered generation (Claude — async + sync)
 - [x] LLM-powered invalidation checking
 - [x] LangGraph integration (nodes, state, conditional edges)
+- [x] YAML configuration (`config_path` param, `[config]` extra)
 - [ ] OpenAI generator
 - [ ] CrewAI integration
 - [ ] Benchmarks: decision quality with/without anticipation
