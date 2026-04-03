@@ -1,6 +1,6 @@
 ---
 name: anticipation-layer
-description: "Persistent temporal awareness for AI agents. This skill gives Claude the ability to anticipate future events, risks, and opportunities by maintaining structured prediction files organized by time horizon (short/medium/long term). Use this skill whenever working on a project over multiple sessions, managing tasks with deadlines, making strategic decisions, planning work, debugging recurring issues, or anytime continuity and foresight would improve outcomes. Also trigger when the user mentions 'anticipate', 'predict', 'what could go wrong', 'risks', 'plan ahead', 'future', or asks Claude to think proactively about upcoming challenges. This skill should be active in the background for any long-running project work."
+description: "Persistent temporal awareness for AI agents. This skill gives you the ability to anticipate future events, risks, and opportunities by maintaining structured prediction files organized by time horizon (short/medium/long term). Use this skill whenever working on a project over multiple sessions, managing tasks with deadlines, making strategic decisions, planning work, debugging recurring issues, or anytime continuity and foresight would improve outcomes. Also trigger when the user mentions 'anticipate', 'predict', 'what could go wrong', 'risks', 'plan ahead', 'future', or asks you to think proactively about upcoming challenges. This skill should be active in the background for any long-running project work."
 ---
 
 # Anticipation Layer

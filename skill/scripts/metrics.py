@@ -14,49 +14,51 @@ Usage:
 
 import json
 import os
-import re
 import sys
 from collections import defaultdict
 from datetime import datetime
 
 
 def scan_files_for_entries(directory: str) -> list[dict]:
-    """Recursively scan all .md files for anticipation entries."""
+    """
+    Scan anticipation JSON files and return a flat list of entry dicts.
+
+    Reads the three horizon files (short_term.json, medium_term.json,
+    long_term.json) plus all JSON files under archives/.
+    Each entry already contains 'id', 'status', 'confidence', 'category',
+    'impact', and 'horizon' fields — no parsing needed.
+    """
     entries = []
+    horizon_files = ["short_term.json", "medium_term.json", "long_term.json"]
 
-    for root, dirs, files in os.walk(directory):
-        for filename in files:
-            if not filename.endswith(".md"):
+    # Current horizon files
+    for filename in horizon_files:
+        filepath = os.path.join(directory, filename)
+        if not os.path.exists(filepath):
+            continue
+        with open(filepath, "r") as f:
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError:
                 continue
-            filepath = os.path.join(root, filename)
+        for entry in data:
+            entries.append(entry)
 
-            # Determine horizon from filename
-            horizon = "unknown"
-            for h in ["short_term", "medium_term", "long_term"]:
-                if h in filename:
-                    horizon = h
-                    break
-
-            with open(filepath, "r") as f:
-                content = f.read()
-
-            blocks = re.split(r'(?=^### \[ANT-)', content, flags=re.MULTILINE)
-            for block in blocks:
-                if not block.strip().startswith("### [ANT-"):
+    # Archived files under archives/
+    archives_dir = os.path.join(directory, "archives")
+    if os.path.isdir(archives_dir):
+        for root, dirs, files in os.walk(archives_dir):
+            for filename in files:
+                if not filename.endswith(".json"):
                     continue
-
-                entry = {"horizon": horizon}
-
-                id_match = re.match(r'### \[(ANT-[\w-]+)\]', block.strip())
-                if id_match:
-                    entry["id"] = id_match.group(1)
-
-                for field in ["Status", "Confidence", "Category", "Impact"]:
-                    match = re.search(rf'\*\*{field}\*\*:\s*(.+)', block)
-                    if match:
-                        entry[field.lower()] = match.group(1).strip()
-
-                entries.append(entry)
+                filepath = os.path.join(root, filename)
+                with open(filepath, "r") as f:
+                    try:
+                        data = json.load(f)
+                    except json.JSONDecodeError:
+                        continue
+                for entry in data:
+                    entries.append(entry)
 
     return entries
 

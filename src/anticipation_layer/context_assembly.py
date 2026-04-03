@@ -54,7 +54,7 @@ class ContextAssembly:
             return 0.0
         return len(words_a & words_b) / len(words_a | words_b)
 
-    def select(self, query: str) -> list[tuple[Anticipation, float]]:
+    def select(self, query: str, top_k: Optional[int] = None) -> list[tuple[Anticipation, float]]:
         """
         Select the most relevant anticipations for a given query.
 
@@ -66,10 +66,12 @@ class ContextAssembly:
 
         Args:
             query: The current user request or agent task.
+            top_k: Override for the maximum number of results (defaults to self.top_k).
 
         Returns:
             List of (anticipation, score) tuples, sorted by score descending.
         """
+        k = top_k if top_k is not None else self.top_k
         active = self.storage.load_all_active()
         scored = []
 
@@ -88,9 +90,9 @@ class ContextAssembly:
             scored.append((ant, score))
 
         scored.sort(key=lambda x: x[1], reverse=True)
-        return scored[:self.top_k]
+        return scored[:k]
 
-    def format_context(self, query: str) -> str:
+    def format_context(self, query: str, _top_k: Optional[int] = None) -> str:
         """
         Generate the formatted anticipation context block for injection.
 
@@ -100,7 +102,8 @@ class ContextAssembly:
         Returns:
             Formatted markdown string ready for context injection.
         """
-        selected = self.select(query)
+        top_k = _top_k if _top_k is not None else self.top_k
+        selected = self.select(query, top_k=top_k)
 
         if not selected:
             return ""
@@ -137,9 +140,8 @@ class ContextAssembly:
                 f"Anticipation context ({estimated_tokens:.0f} est. tokens) "
                 f"exceeds budget ({self.max_tokens}). Truncating."
             )
-            # Re-select with fewer items
-            self.top_k = max(3, self.top_k - 2)
-            return self.format_context(query)
+            # Re-select with fewer items without mutating self.top_k
+            return self.format_context(query, _top_k=max(3, top_k - 2))
 
         return context
 
